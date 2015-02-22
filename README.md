@@ -1,3 +1,3 @@
-## Google News API
+## Bing News API
 
-JavaScript API for querying Google News.
+JavaScript API for querying Bing News.
