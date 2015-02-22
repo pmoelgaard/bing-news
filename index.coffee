@@ -1,6 +1,8 @@
 util = require 'util'
 request = require 'request'
-extend = require 'extend'
+extend = require('extend')
+url = require('url')
+URLHash = require('nx-url-hash')
 Loki = require 'lokijs'
 FeedParser = require('feedparser')
 EventEmitter = require('events').EventEmitter;
@@ -13,12 +15,11 @@ class NewsProvider
   @RSS: 'rss'
 
   constructor: (options = {}) ->
-
-    options = extend {}, options, {
+    this.options = options = extend({}, options, {
       cacheFileName: 'bing-news.json'
-    }
-
+    })
     this.cacheProvider = new Loki(options.cacheFileName)
+    this.urlHash = new URLHash()
 
 
   stream: (track, callback) ->
@@ -50,11 +51,15 @@ class NewsProvider
         feedParser = new FeedParser()
 
         feedParser.on 'readable', () =>
-          while( item = feedParser.read() )
-            existingItems = this.cache.find( { guid:item.guid } )
-            if existingItems.length is 0
-              this.cache.insert(item)
-              this.onData(item)
+          try
+            while( item = feedParser.read() )
+              item.guid = this.generateGuid(item)
+              existingItems = this.cache.find( { guid:item.guid } )
+              if existingItems.length is 0
+                this.cache.insert(item)
+                this.onData(item)
+          catch error
+            console.log(error)
 
         feedParser.on 'error', (error) =>
           this.onError(error)
@@ -71,17 +76,20 @@ class NewsProvider
       disconnect: () =>
         clearInterval(this.checkTrigger)
 
-
       onData: (data) =>
         this.emit(NewsProvider.DATA, data)
 
       onError: (error) =>
         this.emit(NewsProvider.ERROR, error)
 
+      generateGuid: (item) =>
+        itemUrl = url.parse(item.link, true)
+        itemUrl = itemUrl.query.url
+        guid = this.context.urlHash.hash(itemUrl)
+        return guid
 
     stream = new NewsStream(this, track)
     callback(stream)
-
 
     return
 
